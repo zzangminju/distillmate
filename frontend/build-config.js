@@ -15,7 +15,7 @@ const configContent = `window.APP_CONFIG = ${JSON.stringify(
 
 const configPath = path.join(
   __dirname,
-  "config.js"
+  "runtime-config.js"
 );
 
 fs.writeFileSync(
