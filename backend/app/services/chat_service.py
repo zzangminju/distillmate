@@ -1,4 +1,5 @@
 import os
+import ssl
 from functools import lru_cache
 
 import certifi
@@ -33,26 +34,26 @@ def get_openai_client():
         )
 
     # Windows 로컬 환경에서 OpenAI SDK의
-    # 시스템 정보 및 인증서 조회 지연을 방지합니다.
+    # 시스템 정보 조회 지연을 방지합니다.
     if os.name == "nt":
         openai_base_client.get_platform = (
             lambda: "windows"
         )
 
-        http_client = httpx2.Client(
-            verify=certifi.where(),
-            timeout=30.0,
-        )
+    # 로컬과 Render 모두 certifi 인증서 묶음을 사용합니다.
+    # 최소 Linux 서버에서 시스템 인증서를 찾지 못해
+    # OpenAI 연결이 실패하는 문제를 방지합니다.
+    ssl_context = ssl.create_default_context(
+        cafile=certifi.where(),
+    )
+    http_client = httpx2.Client(
+        verify=ssl_context,
+        timeout=30.0,
+    )
 
-        return OpenAI(
-            api_key=api_key,
-            http_client=http_client,
-        )
-
-    # Render의 Linux 환경에서는 표준 설정을 사용합니다.
     return OpenAI(
         api_key=api_key,
-        timeout=30.0,
+        http_client=http_client,
     )
 
 
