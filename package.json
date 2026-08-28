@@ -1,0 +1,12 @@
+{
+  "name": "distillmate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "증류탑 에너지·품질 운전 분석 AI 비서",
+  "scripts": {
+    "build": "node frontend/build-config.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

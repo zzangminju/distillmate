@@ -1,0 +1,8 @@
+fastapi==0.141.1
+uvicorn[standard]
+firebase-admin
+openai==3.5.0
+python-dotenv
+pydantic
+certifi
+httpx2

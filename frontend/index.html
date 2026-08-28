@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+  <meta
+    name="description"
+    content="증류탑 에너지·품질 운전 분석 AI 비서"
+  >
+  <title>DistillMate</title>
+
+  <link rel="stylesheet" href="styles.css">
+
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
+</head>
+
+<body>
+  <header class="topbar">
+    <a class="brand" href="#">
+      <span class="brand-mark">D</span>
+
+      <span>
+        <strong>DistillMate</strong>
+        <small>Distillation Process Assistant</small>
+      </span>
+    </a>
+
+    <nav class="main-nav" aria-label="주요 메뉴">
+      <a href="#summary-section">공정 요약</a>
+      <a href="#data-section">데이터 관리</a>
+      <a href="#chat-section">AI 분석</a>
+    </nav>
+
+    <div class="header-actions">
+      <span id="api-status" class="status-badge">
+        API 확인 중
+      </span>
+
+      <button
+        id="theme-toggle"
+        class="icon-button"
+        type="button"
+        aria-label="다크 모드 전환"
+        title="다크 모드 전환"
+      >
+        🌙
+      </button>
+    </div>
+  </header>
+
+  <main class="page-container">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">CHEMICAL PROCESS AI</p>
+
+        <h1>
+          증류탑 운전 데이터를<br>
+          한눈에 이해하세요
+        </h1>
+
+        <p class="hero-description">
+          스팀 원단위와 제품 순도를 분석하고,
+          이상 운전과 정비 효과를 AI에게 질문할 수 있습니다.
+        </p>
+      </div>
+
+      <div class="hero-badge">
+        <span>현재 분석 대상</span>
+        <strong>증류 공정 운전 데이터</strong>
+        <small id="hero-period">기간 불러오는 중</small>
+      </div>
+    </section>
+
+    <section id="summary-section" class="content-section">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">PROCESS OVERVIEW</p>
+          <h2>공정 운전 요약</h2>
+        </div>
+
+        <button
+          id="refresh-summary-button"
+          class="secondary-button"
+          type="button"
+        >
+          요약 새로고침
+        </button>
+      </div>
+
+      <div class="summary-grid">
+        <article class="summary-card">
+          <span class="card-label">데이터 개수</span>
+          <strong id="summary-count">-</strong>
+          <small>records</small>
+        </article>
+
+        <article class="summary-card">
+          <span class="card-label">평균 스팀 원단위</span>
+          <strong id="summary-steam">-</strong>
+          <small>kg-steam/kg-product</small>
+        </article>
+
+        <article class="summary-card">
+          <span class="card-label">평균 제품 순도</span>
+          <strong id="summary-purity">-</strong>
+          <small>%</small>
+        </article>
+
+        <article class="summary-card trend-card">
+          <span class="card-label">최근 에너지 추세</span>
+          <strong id="summary-trend">-</strong>
+          <small id="summary-change">변화율 확인 중</small>
+        </article>
+      </div>
+
+      <div class="dashboard-grid">
+        <article class="panel chart-panel">
+          <div class="panel-heading">
+            <div>
+              <h3>스팀 원단위 추세</h3>
+              <p>날짜별 에너지 사용 효율 변화</p>
+            </div>
+
+            <button
+              id="export-button"
+              class="text-button"
+              type="button"
+            >
+              CSV 내보내기
+            </button>
+          </div>
+
+          <div class="chart-wrapper">
+            <canvas
+              id="trend-chart"
+              aria-label="스팀 원단위 추세 그래프"
+            ></canvas>
+          </div>
+        </article>
+
+        <article class="panel insight-panel">
+          <div class="panel-heading">
+            <div>
+              <h3>핵심 운전 인사이트</h3>
+              <p id="summary-period">기간 확인 중</p>
+            </div>
+          </div>
+
+          <dl class="insight-list">
+            <div>
+              <dt>이상 운전</dt>
+              <dd id="anomaly-count">-</dd>
+            </div>
+
+            <div>
+              <dt>순도 기준 미달</dt>
+              <dd id="offspec-count">-</dd>
+            </div>
+
+            <div>
+              <dt>정비 전후 변화</dt>
+              <dd id="maintenance-effect">-</dd>
+            </div>
+
+            <div>
+              <dt>최대 원단위</dt>
+              <dd id="maximum-intensity">-</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+    </section>
+
+    <section id="data-section" class="content-section">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">DATA MANAGEMENT</p>
+          <h2>운전 데이터 관리</h2>
+        </div>
+
+        <p class="section-description">
+          데이터를 추가하거나 기존 운전 기록을 수정·삭제할 수 있습니다.
+        </p>
+      </div>
+
+      <div class="data-layout">
+        <article class="panel form-panel">
+          <div class="panel-heading">
+            <div>
+              <h3 id="data-form-title">새 운전 데이터</h3>
+              <p>필수 운전 조건을 입력하세요.</p>
+            </div>
+          </div>
+
+          <form id="data-form">
+            <input id="data-id" type="hidden">
+
+            <div class="form-grid">
+              <label>
+                날짜
+                <input id="date" type="date" required>
+              </label>
+
+              <label>
+                운전 상태
+                <select id="operating-status" required>
+                  <option value="NORMAL">정상</option>
+                  <option value="PARTIAL_LOAD">부분 부하</option>
+                  <option value="ABNORMAL">비정상</option>
+                  <option value="MAINTENANCE">정비</option>
+                </select>
+              </label>
+
+              <label>
+                원료 유량
+                <span class="input-unit">
+                  <input
+                    id="feed-flow"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                  >
+                  <small>kg/h</small>
+                </span>
+              </label>
+
+              <label>
+                스팀 유량
+                <span class="input-unit">
+                  <input
+                    id="steam-flow"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                  >
+                  <small>kg/h</small>
+                </span>
+              </label>
+
+              <label>
+                유출액 유량
+                <span class="input-unit">
+                  <input
+                    id="distillate-flow"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                  >
+                  <small>kg/h</small>
+                </span>
+              </label>
+
+              <label>
+                스팀 원단위
+                <span class="input-unit">
+                  <input
+                    id="steam-intensity"
+                    type="number"
+                    step="0.001"
+                    readonly
+                    required
+                  >
+                  <small>kg/kg</small>
+                </span>
+              </label>
+
+              <label>
+                환류비
+                <input
+                  id="reflux-ratio"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  required
+                >
+              </label>
+
+              <label>
+                제품 순도
+                <span class="input-unit">
+                  <input
+                    id="product-purity"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    required
+                  >
+                  <small>%</small>
+                </span>
+              </label>
+
+              <label>
+                탑정 온도
+                <span class="input-unit">
+                  <input
+                    id="top-temperature"
+                    type="number"
+                    step="0.01"
+                    required
+                  >
+                  <small>°C</small>
+                </span>
+              </label>
+
+              <label>
+                탑저 온도
+                <span class="input-unit">
+                  <input
+                    id="bottom-temperature"
+                    type="number"
+                    step="0.01"
+                    required
+                  >
+                  <small>°C</small>
+                </span>
+              </label>
+            </div>
+
+            <label class="full-width-label">
+              메모
+              <textarea
+                id="memo"
+                rows="3"
+                maxlength="300"
+                placeholder="예: 정상 운전, 열교환기 정비 후 운전"
+                required
+              ></textarea>
+            </label>
+
+            <div class="form-actions">
+              <button
+                id="cancel-edit-button"
+                class="secondary-button hidden"
+                type="button"
+              >
+                수정 취소
+              </button>
+
+              <button
+                id="save-data-button"
+                class="primary-button"
+                type="submit"
+              >
+                데이터 저장
+              </button>
+            </div>
+          </form>
+        </article>
+
+        <article class="panel table-panel">
+          <div class="panel-heading">
+            <div>
+              <h3>최근 운전 기록</h3>
+              <p>최근 날짜부터 표시됩니다.</p>
+            </div>
+
+            <span id="data-count-label" class="count-chip">
+              0개
+            </span>
+          </div>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>원단위</th>
+                  <th>순도</th>
+                  <th>상태</th>
+                  <th>메모</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+
+              <tbody id="data-table-body">
+                <tr>
+                  <td colspan="6" class="empty-cell">
+                    데이터를 불러오는 중입니다.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="chat-section" class="content-section">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">AI PROCESS ASSISTANT</p>
+          <h2>공정 분석 AI</h2>
+        </div>
+
+        <p class="section-description">
+          저장된 공정 데이터와 통계에 근거해 답변합니다.
+        </p>
+      </div>
+
+      <div class="chat-layout">
+        <aside class="panel conversation-panel">
+          <div class="panel-heading">
+            <div>
+              <h3>대화 기록</h3>
+              <p>저장된 분석 대화를 불러옵니다.</p>
+            </div>
+
+            <button
+              id="refresh-conversations-button"
+              class="icon-button"
+              type="button"
+              title="대화 목록 새로고침"
+              aria-label="대화 목록 새로고침"
+            >
+              ↻
+            </button>
+          </div>
+
+          <button
+            id="new-conversation-button"
+            class="secondary-button full-button"
+            type="button"
+          >
+            ＋ 새 대화
+          </button>
+
+          <div
+            id="conversation-list"
+            class="conversation-list"
+          >
+            <p class="empty-message">
+              대화 기록을 불러오는 중입니다.
+            </p>
+          </div>
+        </aside>
+
+        <article class="panel chat-panel">
+          <div class="chat-header">
+            <div>
+              <span class="assistant-avatar">AI</span>
+
+              <span>
+                <strong>DistillMate AI</strong>
+                <small>공정 데이터 기반 분석 비서</small>
+              </span>
+            </div>
+
+            <span id="current-conversation-label">
+              새 대화
+            </span>
+          </div>
+
+          <div
+            id="chat-messages"
+            class="chat-messages"
+            aria-live="polite"
+          >
+            <div class="message assistant-message">
+              <span class="message-author">DistillMate AI</span>
+
+              <p>
+                안녕하세요. 증류탑 운전 데이터를 바탕으로
+                에너지 효율, 제품 순도, 이상 운전과 정비 효과를
+                분석해 드릴게요.
+              </p>
+            </div>
+          </div>
+
+          <div
+            id="chat-loading"
+            class="chat-loading hidden"
+            role="status"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+            공정 데이터를 분석하고 있습니다.
+          </div>
+
+          <form id="chat-form" class="chat-form">
+            <textarea
+              id="chat-input"
+              rows="2"
+              maxlength="1000"
+              placeholder="예: 최근 증류탑 에너지 효율이 어때?"
+              required
+            ></textarea>
+
+            <button
+              id="send-chat-button"
+              class="primary-button"
+              type="submit"
+            >
+              전송
+            </button>
+          </form>
+
+          <div class="suggestion-list">
+            <button
+              class="suggestion-button"
+              type="button"
+              data-question="최근 증류탑 에너지 효율이 어때?"
+            >
+              최근 에너지 효율
+            </button>
+
+            <button
+              class="suggestion-button"
+              type="button"
+              data-question="제품 순도 기준 미달은 몇 번 발생했어?"
+            >
+              순도 기준 미달
+            </button>
+
+            <button
+              class="suggestion-button"
+              type="button"
+              data-question="정비 이후에는 어떻게 달라졌어?"
+            >
+              정비 효과
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div
+    id="toast"
+    class="toast hidden"
+    role="status"
+    aria-live="polite"
+  ></div>
+
+  <footer class="footer">
+    <p>
+      DistillMate · 증류탑 에너지·품질 운전 분석 AI 비서
+    </p>
+  </footer>
+</body>
+</html>
