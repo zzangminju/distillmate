@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, status
 from openai import (
     APIConnectionError,
@@ -7,6 +9,8 @@ from openai import (
 
 from ..models.chat import ChatRequest, ChatResponse
 from ..services.chat_service import generate_chat_response
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api",
@@ -38,6 +42,9 @@ def chat(payload: ChatRequest):
         ) from error
 
     except APIConnectionError as error:
+        logger.exception(
+            "OpenAI API connection failed"
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=(
