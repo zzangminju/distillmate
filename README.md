@@ -169,16 +169,16 @@ conversations/{conversation_id}
 
 ## 9. 배포 URL
 
-- 프론트엔드: 배포 후 입력
-- 백엔드 API: 배포 후 입력
-- Swagger UI: 배포 후 입력
+- 프론트엔드: https://backend-seven-ivory-84.vercel.app
+- 백엔드 API: https://distillmate-api.onrender.com
+- Swagger UI: https://distillmate-api.onrender.com/docs
 
 ## 10. 로컬 실행 방법
 
 ### 저장소 내려받기
 
 ```powershell
-git clone 저장소_URL
+git clone https://github.com/zzangminju/distillmate.git
 cd distillmate
 ```
 
@@ -247,14 +247,20 @@ Render 무료 인스턴스는 일정 시간 사용하지 않으면 중지될 수
 
 ## 13. 제출 스크린샷
 
-### 데이터 요약 및 AI 채팅
+### 공정 운전 요약
 
-배포 완료 후 스크린샷 추가
+180일 운전 데이터의 평균 스팀 원단위, 평균 제품 순도, 최근 에너지 추세, 이상 운전 및 정비 효과를 시각화합니다.
+
+![공정 운전 요약](screenshots/process-summary.png)
 
 ### 데이터 관리
 
-배포 완료 후 스크린샷 추가
+운전 데이터 입력 폼과 최근 운전 기록을 제공하며, 데이터 추가·조회·수정·삭제 기능을 지원합니다.
 
-### 대화 기록 불러오기
+![운전 데이터 관리](screenshots/data-management.png)
 
-배포 완료 후 스크린샷 추가
+### AI 채팅 및 대화 기록 불러오기
+
+저장된 공정 데이터 요약을 기반으로 AI가 답변하며, 이전 대화 목록을 조회하고 다시 불러올 수 있습니다.
+
+![AI 채팅 및 대화 기록](screenshots/chat-history.png)
