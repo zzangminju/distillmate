@@ -531,61 +531,267 @@ Swagger의 `Try it out`에서 요청 스키마, 상태 코드, 실제 JSON 응�
 ![AI 채팅 및 대화 기록](screenshots/chat-history.png)
 
 
-DistillMate: 어떤 앱인가?
-DistillMate는 증류탑의 에너지·품질 운전 데이터를 분석하고, AI가 공정 데이터를 근거로 질문에 답하는 화학공학 공정 분석 웹 앱입니다. 사용자는 스팀 유량, 유출액 유량, 환류비, 제품 순도, 탑정·탑저 온도 및 운전 상태를 입력·관리합니다. 서버는 스팀 원단위 = 스팀 유량 / 유출액 유량을 검증하고, 에너지 효율 추세, 순도 기준 미달, 이상 운전, 정비 전후 변화를 집계합니다.
+25. 평가 문항 답변 및 구현 근거
+핵심: DistillMate는 증류탑의 운전 데이터를 분석해 에너지 효율·제품 품질·이상 운전을 시각화하고, 계산된 통계를 근거로 AI가 질문에 답하는 웹 애플리케이션입니다.
 
-일반적인 AI 챗봇과 달리 Python이 먼저 결정적인 통계를 계산하고, 요약 값과 최근 운전 기록을 시스템 지침에 삽입하여 AI가 근거 기반으로 설명하도록 합니다. 데이터는 학습용 180일 합성 데이터이며 실제 설비의 자동 제어나 안전 진단을 지원하지 않습니다.
-- 웹 앱: https://backend-seven-ivory-84.vercel.app
-- 백엔드: https://distillmate-api.onrender.com
-- API 문서: https://distillmate-api.onrender.com/docs
-평가 문항 대응표 (2026-10-27 코드 검토)
-판정 주의: 아래의 '구현 확인'은 GitHub main 브랜치의 코드를 읽어 기능 경로를 확인했다는 의미입니다. 배포 서버 접속, 실제 Firestore 저장, AI API 왕복 호출, 모바일 실기기 테스트는 이 검토에서 성공적으로 재현하지 못했습니다. 따라서 실제 평가 PASS를 독립적으로 확정한 것은 아닙니다. 첨부 평가 화면에서는 항목 1~4가 PASS로 표시되어 있습니다.
+검증 범위: 이 문서는 실제 GitHub 코드와 기존 README를 대조해 작성했습니다. 코드 구현 확인 ≠ 현재 배포 서버에서 실제 작동 확인입니다. 전달받은 평가표에서는 1~4번 항목이 PASS로 체크되어 있지만 여기서는 독립 실행 테스트를 했다고 주장하지 않습니다.
 
-항목 1 — 실행 및 실제 연동
-평가 기준	근거	판단
-배포한 웹 서비스 URL 정상 접속	README의 Vercel 배포 주소, vercel.json, 프론트 빌드 설정	주소·설정 확인 / 실접속 검증 필요
-Swagger UI API 문서 확인	backend/app/main.py FastAPI 앱, routers/ 엔드포인트, /docs 주소	구현 확인 / 배포 접근 검증 필요
-웹 입력 → Firestore 저장 → 목록 반영	frontend/app.js의 saveData() → POST /api/data → services/data_service.py → Firestore data → loadData()	구현 확인 / DB 왕복 검증 필요
-/api/data/summary 응답 및 채팅 요약 반영	routers/data.py의 /summary; summary_service.get_data_summary()를 chat_service.build_system_prompt()에서도 호출	구현 확인 / 실응답 검증 필요
-대화 저장, 목록 조회 및 불러오기	chat_service.py의 답변 직후 저장, conversation_service.py, frontend/app.js의 loadConversations()·loadConversation()	구현 확인 / 실저장 검증 필요
-모바일·작은 화면 이용	frontend/styles.css 1100/800/560px 미디어 쿼리; 반응형 폼·채팅; Canvas 리사이징	코드 확인 / 실기기 점검 필요
+빠른 안내
+항목	확인하는 내용	이 README에서 제공하는 근거
+1. 실행·연동	배포·Swagger·데이터 저장·AI·대화·모바일 (6문항)	소스 흐름 + 배포 환경 재검증 방법
+2. 설계·구조	라우터/서비스·DB 설계·Pydantic·화면 상태 (4문항)	설계 선택 이유 + 관련 코드
+3. AI·데이터	프롬프트 주입·요약 API·대화 저장·환경변수 (4문항)	채택 이유 + 장단점 + 구현 위치
+4. 문제 대응	콜드스타트·CORS·입력 보안·확장성 (4문항)	문제 원인 + 현재 대응 + 개선 방향
 
 
-항목 2 — 구조 설계 설명
-평가 기준	구현 및 선정 이유	판단
-FastAPI 라우터/서비스 분리	routers/는 요청·응답·HTTP 오류 처리, services/는 DB·요약·AI 계산 담당. 계산 교체가 API 계약에 미치는 영향을 낮춤	구현 확인
-data / conversations 컬렉션 설계	data: 일자별 공정 기록을 문서 하나로 저장해 수정·분석 간단화. conversations: 대화별 메시지 배열과 생성·갱신 시간을 보관해 한 번에 복원	구현 확인
-Pydantic 스키마와 검증	models/data.py, chat.py, conversation.py: 양수 유량, 0~100% 순도, 상태 Enum, 문자 수, 스팀 원단위 교차 검증; 잘못된 요청 422 처리	구현 확인
-프론트 상태 흐름	state.records/summary/conversations/currentConversationId; 데이터 CRUD 후 데이터·요약 재조회, 채팅 성공 후 대화 목록 갱신, 기존 대화 선택시 메시지 재표시	구현 확인
+바로가기: 서비스 소개 · 1. 실행·연동 · 2. 설계·구조 · 3. AI·데이터 · 4. 문제 대응 · 검증 체크리스트
+
+<a id="distillmate-서비스-소개"></a>
+앱 소개 — DistillMate
+한 문장으로: 증류탑 운전 데이터를 대시보드로 분석하고, 계산 결과를 AI에게 제공해 자연어로 설명하는 화학공학 AI 공정 분석 비서입니다.
+서비스 구성	설명
+입력	스팀·유출액·원료 유량, 환류비, 제품 순도, 탑정/탑저 온도, 운전 상태·메모
+자동 계산	스팀 원단위 = 스팀 유량 ÷ 유출액 유량 (kg-steam/kg-product)
+공정 분석	최근 7개 기록과 이전 7개 비교, 순도 기준 미달, 이상 운전, 정비 전후 지표
+AI 비서	Python이 계산한 데이터 요약과 최근 기록에 근거해 답변, 기존 대화 이어가기
+데이터 관리	Firestore 저장, 추가/조회/수정/삭제, CSV 내보내기, 대화 목록/복원
 
 
-항목 3 — AI 및 데이터 설계 근거
-평가 기준	구현 및 이유	판단
-요약 → 시스템 프롬프트 주입	services/chat_service.py의 build_system_prompt()가 계산된 통계·최근 기록을 주입. 숫자 일관성 장점, 잘못된 원본 데이터·토큰 비용·원인 과대해석은 한계	구현 확인
-별도 요약 API	GET /api/data/summary로 AI 호출 없이 대시보드 표시. 대시보드와 채팅이 같은 get_data_summary() 사용해 중복 로직 방지	구현 확인
-대화 저장 방식·시점	AI 답변이 성공한 뒤 사용자/AI 메시지를 Firestore conversations 문서에 배열로 보관, updated_at 갱신. 기존 대화 최근 10개 메시지를 후속 질문에 사용	구현 확인
-환경 변수의 목적·적용	.env.example, render.yaml, frontend/build-config.js. 키·Firebase 인증을 소스에서 분리, ALLOWED_ORIGINS로 출처 제한, API_BASE_URL로 개발·배포 서버 전환	구현 확인 / 배포 실설정은 미확인
+```mermaid
+flowchart TD
+    U[사용자: 공정 데이터 입력] --> F[웹 화면: Vanilla JS]
+    F --> A[FastAPI 라우터]
+    A --> DB[(Firestore: data / conversations)]
+    A --> S[Python 통계 계산]
+    S --> UI[대시보드 / 요약 API]
+    S --> P[공정 요약 + 최근 운전 기록]
+    P --> O[OpenAI Responses API]
+    O --> C[AI 답변 및 대화 저장]
+    C --> F
+```
+사용한 데이터는 실제 플랜트 측정치가 아닌 180일 분량의 교육용 합성 데이터입니다. 공정 자동제어·안전진단·운전조건 변경 지시를 제공하지 않습니다.
 
+링크: 웹사이트 · Swagger API · 소스코드
+<a id="rubric-runtime"></a>
+1. 실행 및 실제 연동 <sub>(6문항)</sub>
+웹/서버 및 DB가 실제로 동작하는지 확인하는 항목입니다. 아래의 설계 확인과 실제 배포 테스트를 구분했습니다.
+Q1-1. 배포된 웹 서비스 URL로 정상 접속이 가능한가?
+핵심 답변: Vercel 프론트엔드와 Render 백엔드로 분리 배포하도록 구성했습니다.
 
-항목 4 — 오류 대응·보안·확장성
-평가 기준	구현 및 설명	판단
-콜드스타트 안내·완화	frontend/app.js가 API 연결 중 표시, 3초 뒤 서버 준비 중, 성공·실패 상태와 실패 토스트 출력	기본 안내 구현. 자동 재시도 없음. 800px 이하에서는 연결 상태 배지가 숨겨져 보완 권장
-CORS 발생 원인 및 해결	프론트 Vercel과 백엔드 Render의 출처가 달라 브라우저가 검사. backend/app/main.py에 CORSMiddleware, ALLOWED_ORIGINS 허용 출처 지정	구현 확인 / 배포 설정 재검증 필요
-입력 위험 및 최소 대응	Pydantic 자료형·범위 검증, 스팀 원단위 교차 검증; 프론트 escapeHtml()·채팅 textContent, 비밀키는 환경변수	기본 방어 구현. 인증·계정별 권한 분리 없음: 실사용자/기밀자료 저장 금지
-대용량/30일 요약 변경	summary_service.py에서 records[-7:], records[-14:-7] 변경; 데이터 증가 시 Firestore 날짜 필터, 페이지네이션, 집계 캐시 도입	설계 설명 가능. 변경 시 models/summary.py, chat_service.py, frontend/app.js의 7일 표기까지 함께 수정
+프론트엔드는 Vercel, 백엔드는 Render에 분리 배포하도록 구성했습니다. 프론트 URL은 https://backend-seven-ivory-84.vercel.app이고, Render API는 https://distillmate-api.onrender.com입니다. [`vercel.json`](vercel.json)은 정적 프론트엔드를 빌드하도록 설정하며, [`frontend/build-config.js`](frontend/build-config.js)는 배포 시 API_BASE_URL을 프론트 런타임 설정 파일에 기록합니다. 따라서 브라우저의 웹 화면이 Render API에 요청을 보낼 수 있도록 설계했습니다.
 
+📁 코드 근거
+[`vercel.json`](vercel.json), [`frontend/build-config.js`](frontend/build-config.js), [`render.yaml`](render.yaml), [`README.md`](README.md) 9·21절.
 
-항목 5 — 보너스 크레딧
-제공된 평가 화면에서는 미부여가 선택되어 있습니다. 별도 수상·추가 점수 부여를 주장하지 않습니다.
-시연·재검증 체크리스트
-1. 배포 URL과 Swagger /docs, /health, /api/data/summary가 실제로 열리는지 확인.
-2. 테스트용 합성 운전 데이터 1건을 입력하여 목록·Firestore·요약의 변경을 확인하고 기록 삭제.
-3. AI에게 최근 에너지 효율을 질문한 뒤 /summary 수치와 답변의 일관성을 확인.
-4. 대화를 새로 만들고 목록에서 선택해 질문·답변을 다시 불러오기.
-5. 375px·768px·데스크톱과 실기기에서 표·폼·차트·채팅 확인.
-6. Render 콜드스타트 상태 안내를 확인하고 모바일에서도 연결 상태가 보이도록 개선.
-현재 한계
-- 실제 공정이 아니라 합성 데이터를 사용하며 AI가 관찰된 관계를 원인으로 확정하지 않습니다.
-- 인증·사용자별 데이터 격리가 없는 단일 사용자 데모 구조입니다.
-- 요약 시 Firestore 기록 전체를 읽어 Python으로 계산합니다. 데이터 증가 시 기간 쿼리·캐싱이 필요합니다.
-- 사용자에게 이미 PASS로 표시된 평가 화면이 있더라도, 본 문서는 실행 검증을 했다고 허위 주장하지 않습니다.
+🔍 실행 확인 방법
+실제 브라우저에서 Vercel URL을 열어 첫 화면이 나타나는지, 우측 API 연결 상태가 정상인지 확인해야 합니다. 소스코드만으로 현재 접속 성공은 보장할 수 없습니다.
+
+검토 상태: 배포 설정 확인 · 현재 URL의 실제 응답 재검증 필요
+Q1-2. Swagger UI에서 API 문서를 확인할 수 있는가?
+핵심 답변: FastAPI의 자동 생성 OpenAPI 문서를 /docs에서 확인할 수 있도록 설계했습니다.
+
+백엔드는 FastAPI app = FastAPI(...)로 실행하며 데이터 CRUD, 요약, 채팅, 대화 기록 라우터를 등록합니다. FastAPI가 요청·응답 스키마를 OpenAPI 문서로 자동 생성하므로 /docs에서 각 API 경로, 요청 본문, 응답 형식과 테스트 입력창(Try it out)을 확인할 수 있습니다. 주요 API는 GET /health, GET /api/data, POST /api/data, PUT/DELETE /api/data/{id}, GET /api/data/summary, POST /api/chat, GET/POST /api/conversations 등입니다.
+
+📁 코드 근거
+[`backend/app/main.py`](backend/app/main.py), [`backend/app/routers/data.py`](backend/app/routers/data.py), [`backend/app/routers/chat.py`](backend/app/routers/chat.py), [`backend/app/routers/conversations.py`](backend/app/routers/conversations.py).
+
+🔍 실행 확인 방법
+https://distillmate-api.onrender.com/docs에서 OpenAPI UI와 각 엔드포인트가 실제 표시되는지 확인해야 합니다.
+
+검토 상태: API 정의 확인 · 배포 Swagger 화면 재검증 필요
+Q1-3. 웹에서 데이터를 추가하면 Firestore에 저장되고 목록에 반영되는가?
+핵심 답변: 입력 → Pydantic 검증 → Firestore 저장 → 목록·요약 재조회 흐름을 구현했습니다.
+
+사용자가 운전 데이터 폼을 제출하면 [`frontend/app.js`](frontend/app.js)의 saveData()가 입력을 JSON으로 변환해 POST /api/data를 호출합니다. 이 요청은 routers/data.py에서 DataCreate로 검증한 뒤 services/data_service.py의 create_data()로 전달됩니다. 서비스는 db.collection("data").document()로 Firestore 문서를 생성해 저장합니다. 프론트엔드는 저장 성공 후 loadData()와 loadSummary()를 호출하여 목록, 차트, 요약 카드를 다시 받아 화면에 반영합니다. 수정은 PUT, 삭제는 DELETE 요청과 같은 갱신 흐름을 따릅니다.
+
+📁 코드 근거
+[`frontend/app.js`](frontend/app.js)의 buildDataPayload(), saveData(), loadData(); [`backend/app/routers/data.py`](backend/app/routers/data.py); [`backend/app/services/data_service.py`](backend/app/services/data_service.py).
+
+🔍 실행 확인 방법
+웹에서 합성 테스트 기록 한 건을 추가해 목록에 보이는지, Firestore 문서가 생성됐는지 확인한 뒤 테스트 기록을 삭제합니다. 실제 DB 반영을 이 문서 작성 과정에서 재현한 것은 아닙니다.
+
+검토 상태: 코드 흐름 확인 · 실제 Firestore 왕복 테스트 필요
+Q1-4. /api/data/summary가 정상 응답하고 채팅 답변이 요약 정보를 반영하는가?
+핵심 답변: 대시보드와 AI 채팅이 동일한 통계 계산 함수를 재사용합니다.
+
+GET /api/data/summary는 summary_service.get_data_summary()를 호출하여 날짜 범위, 데이터 개수, 스팀 원단위 평균·최대·최소, 제품 순도 평균·미달 횟수, 최근 7일 추세, 이상 운전 횟수, 정비 전후 변화를 JSON으로 반환합니다. 채팅에서도 동일한 함수를 chat_service.build_system_prompt()가 호출하고 그 결과와 최근 7일 운전 기록을 AI의 instructions에 넣습니다. 그래서 화면의 요약 계산과 AI가 참고하는 계산 로직을 공유합니다.
+
+📁 코드 근거
+[`backend/app/routers/data.py`](backend/app/routers/data.py), [`backend/app/services/summary_service.py`](backend/app/services/summary_service.py), [`backend/app/services/chat_service.py`](backend/app/services/chat_service.py).
+
+🔍 실행 확인 방법
+Swagger에서 요약 응답을 보고 “최근 에너지 효율이 어때?”라고 채팅한 뒤 최근 두 구간 평균·변화율·판정이 일치하는지 비교합니다. 답변은 생성형이므로 매번 문장이 동일하지 않을 수 있으며, 최신 DB 값이 같은지 먼저 확인해야 합니다.
+
+검토 상태: 공통 집계 함수 확인 · 실제 AI 응답 비교 필요
+Q1-5. 대화가 저장되고 대화 목록 조회 및 ‘불러오기’가 동작하는가?
+핵심 답변: AI 답변이 성공하면 질문·응답을 저장하고, 선택한 대화를 복원할 수 있도록 구현했습니다.
+
+POST /api/chat이 AI 답변을 성공적으로 생성하면 chat_service.generate_chat_response()가 사용자 질문과 AI 답변을 Message 형태로 만든 뒤 Firestore의 conversations 컬렉션에 새 대화를 생성하거나 기존 대화에 메시지를 추가합니다. 대화 문서는 title, messages, created_at, updated_at을 저장합니다. 화면의 loadConversations()는 전체 목록을 최신 수정 순으로 보여주고, loadConversation(id)는 선택한 대화의 메시지를 다시 그려 줍니다. 사용자가 후속 질문을 하면 최근 대화 메시지 최대 10개를 AI 요청에 포함합니다.
+
+📁 코드 근거
+[`backend/app/services/chat_service.py`](backend/app/services/chat_service.py), [`backend/app/services/conversation_service.py`](backend/app/services/conversation_service.py), [`backend/app/routers/conversations.py`](backend/app/routers/conversations.py), [`frontend/app.js`](frontend/app.js).
+
+🔍 실행 확인 방법
+질문 1회 → 대화 목록 생성 → 목록 선택 → 기존 메시지 복원 → 후속 질문을 시험해야 합니다. AI 호출 또는 Firestore 저장이 실패하면 성공 처리하지 않도록 되어 있습니다.
+
+검토 상태: 저장·불러오기 코드 확인 · 실제 저장 및 복원 테스트 필요
+Q1-6. 모바일/작은 화면에서도 주요 기능을 사용할 수 있는가?
+핵심 답변: 반응형 CSS와 Canvas 재렌더링으로 작은 화면에 대응했습니다.
+
+CSS는 화면 폭에 따라 레이아웃을 조정합니다. 1100px 이하에서는 일부 다열 화면을 축소하고, 800px 이하에서는 대시보드 및 채팅 영역을 한 열로 배치하며, 560px 이하에서는 폼·요약 카드와 채팅 입력을 세로로 재배치합니다. 차트는 화면 크기가 변할 때 150ms 디바운스 후 Canvas를 다시 그립니다. 따라서 입력, 요약 확인, 대화 조회·전송을 작은 화면에서도 사용할 수 있도록 구성했습니다.
+
+📁 코드 근거
+[`frontend/styles.css`](frontend/styles.css)의 @media 규칙, [`frontend/app.js`](frontend/app.js)의 drawTrendChart()와 resize 이벤트.
+
+🔍 실행 확인 방법
+800px 이하에서는 .status-badge가 숨겨져 API 연결 상태를 확인하기 어려운 한계가 있습니다. 375px·768px 및 실제 모바일 기기에서 폼, 표, 차트, 채팅을 조작하는 추가 테스트가 필요합니다.
+
+검토 상태: 반응형 CSS 확인 · 모바일 실기기 사용성 테스트 필요
+<a id="rubric-design"></a>
+2. 백엔드·DB·프론트 설계 <sub>(4문항)</sub>
+코드가 어떻게 분리되어 있으며, 왜 그 구조를 선택했는지 설명합니다.
+Q2-1. FastAPI에서 라우터/서비스 등을 어떤 기준으로 분리했는지 설명할 수 있는가?
+핵심 답변: 라우터는 HTTP 처리, 서비스는 데이터·통계·AI 비즈니스 로직을 담당하도록 분리했습니다.
+
+라우터는 HTTP 계층, 서비스는 업무 로직이라는 기준으로 분리했습니다. routers/data.py는 URL·HTTP 메서드·요청 스키마·404 등 API 응답을 담당하고, services/data_service.py는 Firestore 저장·조회·수정·삭제를 수행합니다. services/summary_service.py는 평균·이상치·정비 효과를 계산하며, routers/chat.py는 AI 요청의 성공/실패를 HTTP 상태로 변환하고 services/chat_service.py는 프롬프트 생성과 모델 호출을 수행합니다. 이렇게 하면 데이터 분석 기준을 바꾸더라도 URL이나 프론트 호출 규약을 덜 변경해도 되고, 계산·DB·AI 기능을 독립적으로 유지보수할 수 있습니다.
+
+📁 코드 근거
+backend/app/routers/, backend/app/services/, backend/app/models/, [`backend/app/main.py`](backend/app/main.py); 기존 README 13절.
+
+검토 상태: 코드에서 책임 분리 확인
+Q2-2. data / conversations 컬렉션 구조를 왜 그렇게 설계했는지 설명할 수 있는가?
+핵심 답변: 운전 데이터는 날짜별 문서, 대화는 대화별 메시지 배열 문서로 설계했습니다.
+
+data는 하루의 증류탑 운전조건을 문서 하나로 저장하도록 설계했습니다. 날짜, 스팀·유출액·원료 유량, 환류비, 순도, 온도, 운전 상태, 스팀 원단위 및 메모를 같이 저장하면 특정 날짜 레코드의 수정·삭제와 통계 집계가 간단해집니다. 계산값(value)과 계산에 사용한 원본 유량을 함께 저장하되 Pydantic에서 일치하는지 검사합니다. conversations는 대화 하나를 문서 하나로 보고 메시지 배열과 생성·수정 시각을 저장해 한 번의 읽기로 대화를 복원하도록 했습니다. 짧은 포트폴리오 대화에 구현이 간단하다는 장점이 있지만 대화가 길어지면 문서 크기 제한과 동시 수정 문제가 생길 수 있어 메시지 하위 컬렉션으로 분리할 수 있습니다.
+
+📁 코드 근거
+[`backend/app/services/data_service.py`](backend/app/services/data_service.py), [`backend/app/services/conversation_service.py`](backend/app/services/conversation_service.py), [`backend/app/models/data.py`](backend/app/models/data.py); 기존 README 7·14절.
+
+검토 상태: Firestore 데이터 모델·서비스 코드 확인
+Q2-3. 요청/응답 스키마(Pydantic)를 어떤 기준으로 정의했고 검증을 어디에 적용했는지 설명할 수 있는가?
+핵심 답변: 입력값의 범위·형식뿐 아니라 공정 계산의 일관성도 Pydantic으로 검증합니다.
+
+외부에서 들어오는 값이 잘못된 상태로 DB와 계산 로직에 전달되지 않도록 입력 단위·숫자 범위·문자열 길이·열거형과 계산 관계를 기준으로 스키마를 정의했습니다. DataCreate/DataUpdate는 운전 데이터 입력을 검사하고, DataResponse는 응답 데이터에 ID를 포함합니다. 유량·환류비·원단위는 0 초과, 제품 순도는 0~100%, 운전 상태는 미리 정의한 4종 Enum, 메모는 1~500자로 제한합니다.
+
+특히 모델 검증 함수는 value ≈ steam_flow_kg_h / distillate_flow_kg_h를 재계산해 오차가 0.02를 넘으면 거부합니다. ChatRequest는 질문 길이 1~1000자를 제한하고 대화 ID를 선택적으로 받습니다. FastAPI 라우터의 요청·응답 모델 선언에서 Pydantic 검증을 적용하며 잘못된 입력은 통상 422 응답을 받습니다.
+
+📁 코드 근거
+[`backend/app/models/data.py`](backend/app/models/data.py), [`backend/app/models/chat.py`](backend/app/models/chat.py), [`backend/app/models/conversation.py`](backend/app/models/conversation.py), backend/app/routers/; 기존 README 15절.
+
+검토 상태: Pydantic 모델·라우터 적용 확인
+Q2-4. 프론트에서 ‘데이터 관리/대화 불러오기/채팅’ 화면을 어떤 상태 흐름으로 연결했는지 설명할 수 있는가?
+핵심 답변: 단일 state 객체를 기준으로 데이터/요약/대화/현재 대화 ID를 동기화합니다.
+
+프론트는 별도 프레임워크 없이 [`frontend/app.js`](frontend/app.js)의 단일 상태 객체 state = {records, summary, conversations, currentConversationId}로 화면 데이터를 관리합니다. 초기 로딩 때 Promise.allSettled()로 운전 데이터, 요약, 대화 목록을 가져옵니다. 데이터 추가·수정·삭제 후에는 loadData()와 loadSummary()를 다시 실행하여 기록 표·그래프·요약 카드의 값을 맞춥니다.
+
+대화를 선택하면 loadConversation()이 ID로 서버에 조회 요청을 하고 저장된 메시지를 화면에 다시 표시합니다. 채팅을 보내면 currentConversationId를 함께 전송해 새 대화인지 후속 질문인지 구분하며, 답변 성공 후 대화 목록을 갱신합니다. 이벤트 핸들러에서 상태와 화면 갱신을 연결하도록 구현했습니다.
+
+📁 코드 근거
+[`frontend/app.js`](frontend/app.js)의 state, initializeApp(), saveData(), loadConversation(), sendChatMessage(); 기존 README 18절.
+
+검토 상태: 프론트 상태·이벤트·API 호출 확인
+<a id="rubric-ai"></a>
+3. AI·데이터 설계 근거 <sub>(4문항)</sub>
+정확한 통계 계산과 AI 설명의 역할을 분리한 이유를 다룹니다.
+Q3-1. ‘컨텍스트 주입(요약→시스템 프롬프트)’을 왜 사용했고 어떤 장단점이 있는지 설명할 수 있는가?
+핵심 답변: Python이 통계를 먼저 계산하고 AI는 그 결과와 최근 기록을 해석하도록 했습니다.
+
+일반 AI 모델은 사용자의 Firestore 데이터에 자동으로 접근할 수 없습니다. 그래서 Python이 먼저 평균·추세·순도 미달·이상 운전·정비 전후 변화처럼 재현 가능한 숫자를 계산하고, build_system_prompt()가 이 값 및 최근 기록을 AI 시스템 지침에 삽입하도록 했습니다. 장점은 (1) AI가 실제 기록에 근거한 답을 제공하고, (2) 산술을 모델이 즉석에서 추정하는 것보다 통계 수치의 일관성이 높고, (3) 단위 표기·원인 단정 금지 같은 설명 규칙을 적용할 수 있다는 점입니다.
+
+한계는 질문마다 데이터를 재조회하므로 지연·비용이 생기고, 잘못된 입력이나 메모가 AI 답변에 영향을 줄 수 있으며, AI가 관찰된 현상을 인과관계로 과장할 위험이 남는다는 점입니다. 시스템 프롬프트에 사용자 메모가 포함되므로 프롬프트 인젝션에 대한 추가 방어가 필요합니다.
+
+📁 코드 근거
+[`backend/app/services/chat_service.py`](backend/app/services/chat_service.py)의 build_system_prompt()·generate_chat_response(), [`backend/app/services/summary_service.py`](backend/app/services/summary_service.py); 기존 README 17절.
+
+검토 상태: 통계→프롬프트 연결 및 제약 규칙 확인
+Q3-2. 데이터 요약(/api/data/summary)을 별도로 둔 이유(책임 분리/재사용성 등)를 설명할 수 있는가?
+핵심 답변: 요약 로직을 AI와 분리해 대시보드·챗봇에서 공통으로 재사용합니다.
+
+집계는 AI 채팅과 다른 책임이므로 GET /api/data/summary라는 독립적인 읽기 전용 API로 구성했습니다. 프론트 대시보드는 모델 호출 없이 통계를 조회할 수 있고, 채팅은 같은 get_data_summary() 함수를 호출해 공통된 집계 결과를 프롬프트에 전달할 수 있습니다. 이 구조는 통계 코드를 한곳에서 관리하므로 계산 기준이 변경돼도 대시보드와 AI가 서로 다른 공식을 쓰는 일을 줄입니다. 또한 추후 캐시 또는 배치 집계를 도입하더라도 UI와 채팅 양쪽을 수정할 필요를 줄입니다.
+
+📁 코드 근거
+[`backend/app/routers/data.py`](backend/app/routers/data.py)의 /summary 엔드포인트, [`backend/app/services/summary_service.py`](backend/app/services/summary_service.py), [`backend/app/services/chat_service.py`](backend/app/services/chat_service.py); 기존 README 16절.
+
+검토 상태: 요약 API와 재사용 구조 확인
+Q3-3. 대화 저장 방식(언제 저장하는지, 어떤 형태로 저장하는지)을 선택한 이유를 설명할 수 있는가?
+핵심 답변: AI 답변 성공 직후 질문·답변을 Firestore에 함께 저장하도록 했습니다.
+
+사용자가 질문한 직후가 아니라 AI 답변이 정상 생성된 후 사용자 질문과 AI 응답을 한 쌍으로 저장합니다. 새 대화라면 Firestore conversations에 title, messages 배열, created_at, updated_at을 포함한 문서를 만들고, 기존 대화라면 메시지 배열을 확장한 후 updated_at을 갱신합니다. 짧은 대화 기록을 한 문서로 가져와 복원하기 간단하기 때문에 이 형태를 선택했습니다. 응답에는 conversation_id를 담아 다음 질문에서 문맥을 이어갈 수 있도록 했습니다. 단, AI는 성공했지만 Firestore 쓰기에 실패한 경우 답변을 확정 반환하지 못하고, 두 작업을 하나의 트랜잭션으로 묶지는 않았습니다. 메시지가 많아지면 하위 컬렉션으로 분리하거나 중복 요청 방지 기능을 고려해야 합니다.
+
+📁 코드 근거
+[`backend/app/services/chat_service.py`](backend/app/services/chat_service.py), [`backend/app/services/conversation_service.py`](backend/app/services/conversation_service.py), [`backend/app/models/conversation.py`](backend/app/models/conversation.py); 기존 README 14·19절.
+
+검토 상태: 대화 저장 로직 확인
+Q3-4. 환경 변수를 어떤 이유로 도입했고(보안/배포), 실제로 어떻게 적용했는지 설명할 수 있는가?
+핵심 답변: 비밀키와 배포 환경별 설정을 코드와 분리하기 위해 환경 변수를 도입했습니다.
+
+API 키나 Firebase 서비스 계정 인증정보를 소스에 직접 넣으면 GitHub 공개나 재배포 과정에서 노출될 수 있어 환경 변수로 분리했습니다. 로컬 환경에서는 .env.example을 참고해 Git에서 제외된 .env와 서비스 계정 키 파일을 설정하고, Render에서는 OPENAI_API_KEY, FIREBASE_SERVICE_ACCOUNT_JSON, OPENAI_MODEL, ALLOWED_ORIGINS를 런타임 환경 변수로 관리합니다. Firebase 연결 모듈은 JSON 문자열이나 로컬 파일 경로 중 제공된 방식으로 인증합니다.
+
+Vercel에서는 빌드 시 API_BASE_URL을 받아 [`frontend/build-config.js`](frontend/build-config.js)가 브라우저용 runtime-config.js를 생성하도록 했습니다. 공개 프론트의 API 주소는 브라우저에 보일 수 있어도 되지만 인증 비밀키는 프론트 환경 변수에 포함시키면 안 됩니다.
+
+📁 코드 근거
+.env.example, .gitignore, [`render.yaml`](render.yaml), [`frontend/build-config.js`](frontend/build-config.js), [`backend/app/database/firestore.py`](backend/app/database/firestore.py), [`backend/app/services/chat_service.py`](backend/app/services/chat_service.py), [`backend/app/main.py`](backend/app/main.py); 기존 README 11·21절.
+
+검토 상태: 환경변수 로딩·배포 설정 코드 확인 · 운영 환경의 실제 설정값은 별도 확인
+<a id="rubric-operations"></a>
+4. 장애 대응·보안·확장성 <sub>(4문항)</sub>
+현재 구현과 아직 구현하지 않은 보완점을 분리했습니다.
+Q4-1. 첫 접속 지연(콜드스타트)이 발생했을 때 사용자가 납득할 수 있도록 어떻게 안내/완화했는지 설명할 수 있는가?
+핵심 답변: 첫 연결이 지연되면 “서버 준비 중”을 표시하지만, 자동 재시도는 아직 없습니다.
+
+Render 무료 인스턴스가 유휴 상태에서 잠들었다 다시 시작하면 첫 API 응답이 지연될 수 있습니다. 프론트의 checkApiConnection()은 처음에 API 연결 중을 표시하고, 3초가 지나도 응답이 없다면 서버 준비 중으로 바꿔 사용자가 빈 화면을 오류로 오해하지 않도록 했습니다. API 응답이 성공하면 API 연결됨, 실패하면 API 연결 실패와 오류 토스트를 보여 줍니다. 다만 현재 자동 재시도나 재연결 버튼으로 지연 자체를 줄이는 기능은 구현되어 있지 않습니다. 또 800px 이하 화면에서는 상태 배지를 숨기기 때문에 모바일 안내는 개선이 필요합니다. 개선안은 상태 문구를 모바일에서도 노출하고, 제한된 재시도 기능을 추가하는 것입니다.
+
+📁 코드 근거
+[`frontend/app.js`](frontend/app.js)의 checkApiConnection(), [`frontend/styles.css`](frontend/styles.css)의 @media (max-width: 800px), [`render.yaml`](render.yaml); 기존 README 12절.
+
+검토 상태: 안내 기능 구현 확인 · 자동 재시도·모바일 상태 표시 보완 권장
+Q4-2. CORS가 왜 발생했고, 어떤 설정으로 해결했는지(허용 오리진/배포 도메인 관점) 설명할 수 있는가?
+핵심 답변: 프론트와 API의 출처가 달라 발생하는 CORS 문제를 허용 출처 목록으로 제어합니다.
+
+브라우저에서 열리는 프론트는 backend-seven-ivory-84.vercel.app, API 서버는 distillmate-api.onrender.com이므로 **도메인이 달라 서로 다른 출처(Origin)**입니다. 이때 브라우저는 API 응답에 적절한 CORS 헤더가 있는지 확인하고, JSON POST 같은 일부 요청에서는 사전 요청(preflight)을 보냅니다. FastAPI main.py의 CORSMiddleware에서 쉼표로 구분된 ALLOWED_ORIGINS를 읽어 허용된 프론트 주소를 등록하도록 했습니다.
+
+로컬 개발 주소와 실제 Vercel 배포 주소를 환경별로 설정해 브라우저의 교차 출처 요청을 허용합니다. 모든 출처를 무조건 허용하는 것보다 허용 대상을 구체적으로 제한하는 방식입니다. 배포된 Render 환경 변수에 실제 Vercel URL이 들어갔는지는 운영 설정 화면에서 확인해야 합니다.
+
+📁 코드 근거
+[`backend/app/main.py`](backend/app/main.py)의 CORSMiddleware, .env.example, [`render.yaml`](render.yaml); 기존 README 21절.
+
+검토 상태: CORS 미들웨어 확인 · 배포 환경의 허용 출처 재검증 필요
+Q4-3. 사용자 입력을 그대로 저장/전달할 때의 위험(예: 악성 입력, 데이터 오염)과 최소 대응(검증/룰/필터)을 설명할 수 있는가?
+핵심 답변: Pydantic 값 검증과 안전한 HTML 표시를 적용했지만 인증·데이터 격리는 추가 구현이 필요합니다.
+
+검증 없이 값을 저장하면 음수 유량, 100% 초과 순도, 잘못된 운전 상태 등으로 공정 통계가 오염될 수 있고, 메모나 대화 제목의 HTML을 그대로 삽입하면 XSS 위험이 있습니다. 따라서 백엔드는 Pydantic에서 필드 범위·자료형·길이·상태 Enum과 원단위 계산 일치 여부를 확인하고, 프론트는 HTML 템플릿에 표시하는 문자열을 escapeHtml()로 처리하며 채팅 메시지는 textContent로 표시합니다. 인증 비밀키는 서버 환경 변수에 보관합니다.
+
+이 대응은 최소 수준입니다. 별도 로그인·사용자별 Firestore 접근통제는 구현되어 있지 않고, AI 프롬프트에 삽입되는 사용자 memo를 신뢰할 수 없는 데이터로 충분히 격리하지 않았으므로 프롬프트 인젝션/데이터 오염 위험이 남아 있습니다. 따라서 실제 고객 또는 기업 데이터를 넣지 않는 데모로 제한하고, 운영 전에는 권한 관리·입력 신뢰 경계·AI 출력 검증을 강화해야 합니다.
+
+📁 코드 근거
+[`backend/app/models/data.py`](backend/app/models/data.py), [`backend/app/models/chat.py`](backend/app/models/chat.py), [`frontend/app.js`](frontend/app.js)의 escapeHtml()·appendChatMessage(), [`backend/app/services/chat_service.py`](backend/app/services/chat_service.py); 기존 README 20·23절.
+
+검토 상태: 기본 검증·HTML 이스케이프 확인 · 인증·프롬프트 인젝션 방어 등 추가 필요
+Q4-4. 데이터가 늘어나거나 요약 기준이 바뀌면(예: 최근 30일만 반영) 어디를 어떻게 수정할지 설명할 수 있는가?
+핵심 답변: 집계 기준은 summary_service.py, 데이터 조회 전략은 data_service.py에서 바꿀 수 있습니다.
+
+현재 get_data_summary()는 Firestore의 전체 data 기록을 가져온 뒤 Python에서 집계합니다. 데이터가 수만 건으로 증가하면 전체 읽기 비용·지연이 커지므로, 우선 data_service.py의 조회 기능을 날짜 범위 기반 Firestore 쿼리와 페이지네이션으로 바꾸고 대시보드·채팅에서 사용하는 구간을 명확히 분리해야 합니다. 예를 들어 최근 30개 운전 기록과 이전 30개 기록을 비교하려면 summary_service.py의 recent_records = records[-7:], previous_records = records[-14:-7]를 각각 [-30:], [-60:-30]으로 바꿉니다. 단, 이것은 최근 30일 달력 기간과 동일하지 않습니다.
+
+날짜 누락이 있을 경우에는 특정 날짜 이후 데이터를 필터링해야 합니다. 변경 후 models/summary.py의 recent_7days_average 등 필드명, chat_service.py의 프롬프트 문구, [`frontend/app.js`](frontend/app.js)의 “최근 7일” 표시와 관련 테스트도 같이 바꿔야 합니다. 자주 조회하는 요약은 일별 집계 저장·캐시로 최적화할 수 있습니다.
+
+📁 코드 근거
+[`backend/app/services/data_service.py`](backend/app/services/data_service.py), [`backend/app/services/summary_service.py`](backend/app/services/summary_service.py), [`backend/app/models/summary.py`](backend/app/models/summary.py), [`backend/app/services/chat_service.py`](backend/app/services/chat_service.py), [`frontend/app.js`](frontend/app.js); 기존 README 16·23절.
+
+검토 상태: 현재 집계 방식 확인 · 30일 기준 및 대규모 최적화는 개선안
+<a id="rubric-checklist"></a>
+5. 보너스와 제출 전 확인
+보너스 크레딧: 제공된 평가표에서는 **‘미부여’**로 표시되어 있습니다. 추가 점수 획득으로 기재하지 않았습니다.
+<details>
+<summary><strong>제출 전 실동작 체크리스트 (클릭해서 펼치기)</strong></summary>
+
+- [ ] Vercel 앱 접속과 Swagger /docs 렌더링 확인
+- [ ] /health 및 /api/data/summary에서 실제 JSON 응답 확인
+- [ ] 테스트용 운전 기록 1건을 추가한 뒤 Firestore·화면·요약 반영 확인, 테스트 데이터 삭제
+- [ ] AI 질문의 수치가 요약 API의 값과 일치하는지 비교
+- [ ] 대화 저장 → 목록 조회 → 이전 대화 선택·복원 → 후속 질문 확인
+- [ ] 375px·768px·데스크톱에서 폼·표·차트·채팅 조작
+- [ ] Render 서버가 준비 중일 때 연결 상태 안내 확인
+- [ ] Render 허용 출처(ALLOWED_ORIGINS)와 Vercel API 주소(API_BASE_URL) 확인
+</details>
+
+운영 주의: 이 저장소는 사용자 인증과 계정별 데이터 격리가 없는 단일 사용자 포트폴리오 데모입니다. 실제 기업 공정 데이터, 개인정보, 비밀정보를 입력하지 마세요. 위 목록의 체크를 완료하기 전에는 실행 검증 완료로 주장하지 않습니다.
