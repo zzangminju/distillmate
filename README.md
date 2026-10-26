@@ -529,3 +529,63 @@ Swagger의 `Try it out`에서 요청 스키마, 상태 코드, 실제 JSON 응�
 저장된 공정 데이터 요약을 기반으로 AI가 답변하며, 이전 대화 목록을 조회하고 다시 불러올 수 있습니다.
 
 ![AI 채팅 및 대화 기록](screenshots/chat-history.png)
+
+
+DistillMate: 어떤 앱인가?
+DistillMate는 증류탑의 에너지·품질 운전 데이터를 분석하고, AI가 공정 데이터를 근거로 질문에 답하는 화학공학 공정 분석 웹 앱입니다. 사용자는 스팀 유량, 유출액 유량, 환류비, 제품 순도, 탑정·탑저 온도 및 운전 상태를 입력·관리합니다. 서버는 스팀 원단위 = 스팀 유량 / 유출액 유량을 검증하고, 에너지 효율 추세, 순도 기준 미달, 이상 운전, 정비 전후 변화를 집계합니다.
+
+일반적인 AI 챗봇과 달리 Python이 먼저 결정적인 통계를 계산하고, 요약 값과 최근 운전 기록을 시스템 지침에 삽입하여 AI가 근거 기반으로 설명하도록 합니다. 데이터는 학습용 180일 합성 데이터이며 실제 설비의 자동 제어나 안전 진단을 지원하지 않습니다.
+- 웹 앱: https://backend-seven-ivory-84.vercel.app
+- 백엔드: https://distillmate-api.onrender.com
+- API 문서: https://distillmate-api.onrender.com/docs
+평가 문항 대응표 (2026-10-27 코드 검토)
+판정 주의: 아래의 '구현 확인'은 GitHub main 브랜치의 코드를 읽어 기능 경로를 확인했다는 의미입니다. 배포 서버 접속, 실제 Firestore 저장, AI API 왕복 호출, 모바일 실기기 테스트는 이 검토에서 성공적으로 재현하지 못했습니다. 따라서 실제 평가 PASS를 독립적으로 확정한 것은 아닙니다. 첨부 평가 화면에서는 항목 1~4가 PASS로 표시되어 있습니다.
+
+항목 1 — 실행 및 실제 연동
+평가 기준	근거	판단
+배포한 웹 서비스 URL 정상 접속	README의 Vercel 배포 주소, vercel.json, 프론트 빌드 설정	주소·설정 확인 / 실접속 검증 필요
+Swagger UI API 문서 확인	backend/app/main.py FastAPI 앱, routers/ 엔드포인트, /docs 주소	구현 확인 / 배포 접근 검증 필요
+웹 입력 → Firestore 저장 → 목록 반영	frontend/app.js의 saveData() → POST /api/data → services/data_service.py → Firestore data → loadData()	구현 확인 / DB 왕복 검증 필요
+/api/data/summary 응답 및 채팅 요약 반영	routers/data.py의 /summary; summary_service.get_data_summary()를 chat_service.build_system_prompt()에서도 호출	구현 확인 / 실응답 검증 필요
+대화 저장, 목록 조회 및 불러오기	chat_service.py의 답변 직후 저장, conversation_service.py, frontend/app.js의 loadConversations()·loadConversation()	구현 확인 / 실저장 검증 필요
+모바일·작은 화면 이용	frontend/styles.css 1100/800/560px 미디어 쿼리; 반응형 폼·채팅; Canvas 리사이징	코드 확인 / 실기기 점검 필요
+
+
+항목 2 — 구조 설계 설명
+평가 기준	구현 및 선정 이유	판단
+FastAPI 라우터/서비스 분리	routers/는 요청·응답·HTTP 오류 처리, services/는 DB·요약·AI 계산 담당. 계산 교체가 API 계약에 미치는 영향을 낮춤	구현 확인
+data / conversations 컬렉션 설계	data: 일자별 공정 기록을 문서 하나로 저장해 수정·분석 간단화. conversations: 대화별 메시지 배열과 생성·갱신 시간을 보관해 한 번에 복원	구현 확인
+Pydantic 스키마와 검증	models/data.py, chat.py, conversation.py: 양수 유량, 0~100% 순도, 상태 Enum, 문자 수, 스팀 원단위 교차 검증; 잘못된 요청 422 처리	구현 확인
+프론트 상태 흐름	state.records/summary/conversations/currentConversationId; 데이터 CRUD 후 데이터·요약 재조회, 채팅 성공 후 대화 목록 갱신, 기존 대화 선택시 메시지 재표시	구현 확인
+
+
+항목 3 — AI 및 데이터 설계 근거
+평가 기준	구현 및 이유	판단
+요약 → 시스템 프롬프트 주입	services/chat_service.py의 build_system_prompt()가 계산된 통계·최근 기록을 주입. 숫자 일관성 장점, 잘못된 원본 데이터·토큰 비용·원인 과대해석은 한계	구현 확인
+별도 요약 API	GET /api/data/summary로 AI 호출 없이 대시보드 표시. 대시보드와 채팅이 같은 get_data_summary() 사용해 중복 로직 방지	구현 확인
+대화 저장 방식·시점	AI 답변이 성공한 뒤 사용자/AI 메시지를 Firestore conversations 문서에 배열로 보관, updated_at 갱신. 기존 대화 최근 10개 메시지를 후속 질문에 사용	구현 확인
+환경 변수의 목적·적용	.env.example, render.yaml, frontend/build-config.js. 키·Firebase 인증을 소스에서 분리, ALLOWED_ORIGINS로 출처 제한, API_BASE_URL로 개발·배포 서버 전환	구현 확인 / 배포 실설정은 미확인
+
+
+항목 4 — 오류 대응·보안·확장성
+평가 기준	구현 및 설명	판단
+콜드스타트 안내·완화	frontend/app.js가 API 연결 중 표시, 3초 뒤 서버 준비 중, 성공·실패 상태와 실패 토스트 출력	기본 안내 구현. 자동 재시도 없음. 800px 이하에서는 연결 상태 배지가 숨겨져 보완 권장
+CORS 발생 원인 및 해결	프론트 Vercel과 백엔드 Render의 출처가 달라 브라우저가 검사. backend/app/main.py에 CORSMiddleware, ALLOWED_ORIGINS 허용 출처 지정	구현 확인 / 배포 설정 재검증 필요
+입력 위험 및 최소 대응	Pydantic 자료형·범위 검증, 스팀 원단위 교차 검증; 프론트 escapeHtml()·채팅 textContent, 비밀키는 환경변수	기본 방어 구현. 인증·계정별 권한 분리 없음: 실사용자/기밀자료 저장 금지
+대용량/30일 요약 변경	summary_service.py에서 records[-7:], records[-14:-7] 변경; 데이터 증가 시 Firestore 날짜 필터, 페이지네이션, 집계 캐시 도입	설계 설명 가능. 변경 시 models/summary.py, chat_service.py, frontend/app.js의 7일 표기까지 함께 수정
+
+
+항목 5 — 보너스 크레딧
+제공된 평가 화면에서는 미부여가 선택되어 있습니다. 별도 수상·추가 점수 부여를 주장하지 않습니다.
+시연·재검증 체크리스트
+1. 배포 URL과 Swagger /docs, /health, /api/data/summary가 실제로 열리는지 확인.
+2. 테스트용 합성 운전 데이터 1건을 입력하여 목록·Firestore·요약의 변경을 확인하고 기록 삭제.
+3. AI에게 최근 에너지 효율을 질문한 뒤 /summary 수치와 답변의 일관성을 확인.
+4. 대화를 새로 만들고 목록에서 선택해 질문·답변을 다시 불러오기.
+5. 375px·768px·데스크톱과 실기기에서 표·폼·차트·채팅 확인.
+6. Render 콜드스타트 상태 안내를 확인하고 모바일에서도 연결 상태가 보이도록 개선.
+현재 한계
+- 실제 공정이 아니라 합성 데이터를 사용하며 AI가 관찰된 관계를 원인으로 확정하지 않습니다.
+- 인증·사용자별 데이터 격리가 없는 단일 사용자 데모 구조입니다.
+- 요약 시 Firestore 기록 전체를 읽어 Python으로 계산합니다. 데이터 증가 시 기간 쿼리·캐싱이 필요합니다.
+- 사용자에게 이미 PASS로 표시된 평가 화면이 있더라도, 본 문서는 실행 검증을 했다고 허위 주장하지 않습니다.
